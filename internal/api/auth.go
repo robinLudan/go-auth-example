@@ -52,9 +52,14 @@ func verifyToken(tokenString string) (uuid.UUID, error) {
 	if !ok {
 		return uuid.Nil, ErrInvalidToken
 	}
-	if time.Now().Unix() > claims["exp"].(int64) {
+	if float64(time.Now().Unix()) > claims["exp"].(float64) {
 		return uuid.Nil, errors.New("token expired")
 	}
 
-	return claims["sub"].(uuid.UUID), nil
+	uuidString := claims["sub"].(string)
+	tokenId, err := uuid.Parse(uuidString)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	return tokenId, nil
 }
