@@ -5,10 +5,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/robinLudan/user-auth/internal/models"
 	"github.com/robinLudan/user-auth/internal/storage"
@@ -33,34 +31,10 @@ func NewApiServer(store storage.Storage) *ApiServer {
 	router := http.NewServeMux()
 	router.Handle("POST /register", http.HandlerFunc(s.handleRegister))
 	router.Handle("POST /login", http.HandlerFunc(s.handleLogin))
+	router.Handle("GET /user", http.HandlerFunc(s.handleGetUser))
 
 	s.Handler = router
 	return s
-}
-
-func (s *ApiServer) handleLogin(w http.ResponseWriter, r *http.Request) {
-	reqPayload := new(models.LoginUserReq)
-	if err := json.NewDecoder(r.Body).Decode(reqPayload); err != nil {
-		respondWithClientErr(w, http.StatusBadRequest, invalidPayload)
-		return
-	}
-
-	user, err := s.store.GetUserByEmail(reqPayload.Email)
-	if err != nil {
-		if err == storage.ErrUserNotFound || user == nil {
-			respondWithClientErr(w, http.StatusUnauthorized, err.Error())
-			return
-		}
-		respondWithInternalErr(w, fmt.Sprintf("Error getting user with email: %v", err))
-		return
-	}
-
-	token, err := CreateToken(user.Name)
-	if err != nil {
-		respondWithInternalErr(w, fmt.Sprintf("Error creating JWT key: %v", err))
-		return
-	}
-	respondWithJson(w, http.StatusOK, token, "token")
 }
 
 func (s *ApiServer) handleRegister(w http.ResponseWriter, r *http.Request) {
@@ -104,6 +78,70 @@ func (s *ApiServer) handleRegister(w http.ResponseWriter, r *http.Request) {
 	respondWithJson(w, http.StatusCreated, newUser, "user")
 }
 
+func (s *ApiServer) handleLogin(w http.ResponseWriter, r *http.Request) {
+	reqPayload := new(models.LoginUserReq)
+	if err := json.NewDecoder(r.Body).Decode(reqPayload); err != nil {
+		respondWithClientErr(w, http.StatusBadRequest, invalidPayload)
+		return
+	}
+
+	user, err := s.store.GetUserByEmail(reqPayload.Email)
+	if err != nil {
+		if err == storage.ErrUserNotFound || user == nil {
+			respondWithClientErr(w, http.StatusUnauthorized, err.Error())
+			return
+		}
+		respondWithInternalErr(w, fmt.Sprintf("Error getting user with email: %v", err))
+		return
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(reqPayload.Password)); err != nil {
+		respondWithClientErr(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+
+	token, err := createToken(user.ID)
+	if err != nil {
+		respondWithInternalErr(w, fmt.Sprintf("Error creating JWT key: %v", err))
+		return
+	}
+
+	// set the token as cookie
+	http.SetCookie(w, &http.Cookie{
+		Name:     AuthHeader,
+		Value:    token,
+		Expires:  time.Now().Add(expiryDuration),
+		HttpOnly: true,
+		Secure:   false, // TODO: set to true in production
+	})
+}
+
+func (s *ApiServer) handleGetUser(w http.ResponseWriter, r *http.Request) {
+	cookie, err := r.Cookie(AuthHeader)
+	if err != nil {
+		respondWithClientErr(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+
+	userID, err := verifyToken(cookie.Value)
+	if err != nil {
+		respondWithClientErr(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+
+	user, err := s.store.GetUserByID(userID)
+	if err != nil {
+		if err == storage.ErrUserNotFound || user == nil {
+			respondWithClientErr(w, http.StatusUnauthorized, err.Error())
+			return
+		}
+		respondWithInternalErr(w, fmt.Sprintf("Error getting user with id: %v", err))
+		return
+	}
+
+	respondWithJson(w, http.StatusOK, user, "user")
+}
+
 func respondWithJson(w http.ResponseWriter, code int, model interface{}, key string) {
 	writeHeader(w, code)
 	err := json.NewEncoder(w).Encode(map[string]interface{}{
@@ -144,20 +182,4 @@ func HashPassword(password string) (string, error) {
 		return "", err
 	}
 	return string(hash), nil
-}
-
-func CreateToken(userName string) (string, error) {
-	// create a new token with symmetric signing
-	key := []byte(os.Getenv("JWT_SECRET"))
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256,
-		jwt.MapClaims{
-			"sub": userName,
-			"iat": time.Now().Unix(),
-			"exp": time.Now().Add(time.Hour).Unix(),
-		})
-	s, err := token.SignedString(key)
-	if err != nil {
-		return "", err
-	}
-	return s, nil
 }

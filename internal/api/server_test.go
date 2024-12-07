@@ -23,6 +23,10 @@ func NewStubStorage() *StubStorage {
 	}
 }
 
+func (s *StubStorage) GetUserByID(id uuid.UUID) (*models.User, error) {
+	return nil, nil
+}
+
 func (s *StubStorage) Register(user *models.User) error {
 	return nil
 }
@@ -114,13 +118,14 @@ func TestHandleLogin(t *testing.T) {
 		assertStatus(t, resp.Code, http.StatusUnauthorized)
 	})
 
-	t.Run("returns token on login", func(t *testing.T) {
+	t.Run("sets token on login", func(t *testing.T) {
 		now := time.Now().UTC()
+		password, _ := HashPassword("password")
 		user := models.User{
 			ID:        uuid.New(),
 			Name:      "john",
 			Email:     "john@test.com",
-			Password:  "secret",
+			Password:  password,
 			CreatedAt: now,
 			UpdatedAt: now,
 		}
@@ -133,7 +138,7 @@ func TestHandleLogin(t *testing.T) {
 
 		reqPayload := models.LoginUserReq{
 			Email:    user.Email,
-			Password: user.Password,
+			Password: "password",
 		}
 		payload, _ := json.Marshal(&reqPayload)
 
@@ -141,8 +146,19 @@ func TestHandleLogin(t *testing.T) {
 		resp := httptest.NewRecorder()
 		server.ServeHTTP(resp, req)
 
-		assertStatus(t, resp.Code, http.StatusOK) // we assume everything went well here
-		assertJsonHeader(t, resp)
+		var token string
+		cookies := resp.Result().Cookies()
+		for _, cookie := range cookies {
+			if cookie.Name == AuthHeader {
+				token = cookie.Value
+				break
+			}
+		}
+		if token == "" {
+			t.Error("Cookie not set")
+		}
+
+		assertStatus(t, resp.Code, http.StatusOK)
 	})
 }
 
