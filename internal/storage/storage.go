@@ -16,5 +16,4 @@ type Storage interface {
 	Register(user *models.User) error
 	GetUserByEmail(email string) (*models.User, error)
 	GetUserByID(id uuid.UUID) (*models.User, error)
-	Login(loginReq *models.LoginUserReq) error
 }

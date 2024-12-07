@@ -39,10 +39,6 @@ func (s *StubStorage) GetUserByEmail(email string) (*models.User, error) {
 	return user, nil
 }
 
-func (s *StubStorage) Login(loginReq *models.LoginUserReq) error {
-	return nil
-}
-
 func TestHandleSignUpUser(t *testing.T) {
 	registerReq := func(userPayload models.CreateUserRequest) *httptest.ResponseRecorder {
 		server := NewApiServer(&StubStorage{})
