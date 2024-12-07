@@ -17,7 +17,7 @@ var (
 
 const (
 	AuthHeader     = "Authorization"
-	expiryDuration = time.Hour
+	expiryDuration = time.Hour * 24 * 30 // 30 days
 )
 
 func createToken(userId uuid.UUID) (string, error) {
