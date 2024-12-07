@@ -3,10 +3,13 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/robinLudan/user-auth/internal/models"
 )
 
@@ -21,6 +24,18 @@ func NewStubStorage() *StubStorage {
 }
 
 func (s *StubStorage) Register(user *models.User) error {
+	return nil
+}
+
+func (s *StubStorage) GetUserByEmail(email string) (*models.User, error) {
+	user, ok := s.userData[email]
+	if !ok {
+		return nil, errors.New("User not found")
+	}
+	return user, nil
+}
+
+func (s *StubStorage) Login(loginReq *models.LoginUserReq) error {
 	return nil
 }
 
@@ -46,6 +61,7 @@ func TestHandleSignUpUser(t *testing.T) {
 		resp := registerReq(createUser)
 		assertStatus(t, resp.Code, http.StatusCreated)
 		assertEqual(t, resp.Result().Header.Get("Content-Type"), jsonContentType)
+		assertJsonHeader(t, resp)
 	})
 
 	t.Run("returns error when payload has empty params", func(t *testing.T) {
@@ -56,6 +72,7 @@ func TestHandleSignUpUser(t *testing.T) {
 		}
 		resp := registerReq(createUser)
 		assertEqual(t, resp.Code, http.StatusBadRequest)
+		assertJsonHeader(t, resp)
 	})
 
 	t.Run("returns error when email is invalid", func(t *testing.T) {
@@ -66,6 +83,7 @@ func TestHandleSignUpUser(t *testing.T) {
 		}
 		resp := registerReq(createUser)
 		assertEqual(t, resp.Code, http.StatusBadRequest)
+		assertJsonHeader(t, resp)
 	})
 
 	t.Run("returns error when password is less than 8 chars", func(t *testing.T) {
@@ -76,7 +94,61 @@ func TestHandleSignUpUser(t *testing.T) {
 		}
 		resp := registerReq(createUser)
 		assertStatus(t, resp.Code, http.StatusBadRequest)
+		assertJsonHeader(t, resp)
 	})
+}
+
+func TestHandleLogin(t *testing.T) {
+	t.Run("validate email and password", func(t *testing.T) {
+		server := NewApiServer(&StubStorage{}) // no user exits
+		loginReq := models.LoginUserReq{
+			Email:    "test@test.com",
+			Password: "password",
+		}
+		payload, _ := json.Marshal(loginReq)
+
+		req, _ := http.NewRequest(http.MethodPost, "/login", bytes.NewBuffer(payload))
+		resp := httptest.NewRecorder()
+
+		server.ServeHTTP(resp, req)
+		assertStatus(t, resp.Code, http.StatusUnauthorized)
+	})
+
+	t.Run("returns token on login", func(t *testing.T) {
+		now := time.Now().UTC()
+		user := models.User{
+			ID:        uuid.New(),
+			Name:      "john",
+			Email:     "john@test.com",
+			Password:  "secret",
+			CreatedAt: now,
+			UpdatedAt: now,
+		}
+
+		store := &StubStorage{
+			userData: make(map[string]*models.User),
+		}
+		store.userData[user.Email] = &user
+		server := NewApiServer(store)
+
+		reqPayload := models.LoginUserReq{
+			Email:    user.Email,
+			Password: user.Password,
+		}
+		payload, _ := json.Marshal(&reqPayload)
+
+		req, _ := http.NewRequest(http.MethodPost, "/login", bytes.NewBuffer(payload))
+		resp := httptest.NewRecorder()
+		server.ServeHTTP(resp, req)
+
+		assertStatus(t, resp.Code, http.StatusOK) // we assume everything went well here
+		assertJsonHeader(t, resp)
+	})
+}
+
+func assertJsonHeader(t testing.TB, resp *httptest.ResponseRecorder) {
+	t.Helper()
+	assertEqual(t, resp.Header().Get("Content-Type"), jsonContentType)
 }
 
 func assertEqual(t testing.TB, got, want any) {

@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/robinLudan/user-auth/internal/models"
 	"github.com/robinLudan/user-auth/internal/storage"
@@ -19,7 +21,10 @@ type ApiServer struct {
 	http.Handler
 }
 
-var jsonContentType = "application/json"
+var (
+	jsonContentType = "application/json"
+	invalidPayload  = "invalid payload"
+)
 
 func NewApiServer(store storage.Storage) *ApiServer {
 	s := new(ApiServer)
@@ -27,16 +32,42 @@ func NewApiServer(store storage.Storage) *ApiServer {
 
 	router := http.NewServeMux()
 	router.Handle("POST /register", http.HandlerFunc(s.handleRegister))
+	router.Handle("POST /login", http.HandlerFunc(s.handleLogin))
 
 	s.Handler = router
 	return s
+}
+
+func (s *ApiServer) handleLogin(w http.ResponseWriter, r *http.Request) {
+	reqPayload := new(models.LoginUserReq)
+	if err := json.NewDecoder(r.Body).Decode(reqPayload); err != nil {
+		respondWithClientErr(w, http.StatusBadRequest, invalidPayload)
+		return
+	}
+
+	user, err := s.store.GetUserByEmail(reqPayload.Email)
+	if err != nil {
+		if err == storage.ErrUserNotFound || user == nil {
+			respondWithClientErr(w, http.StatusUnauthorized, err.Error())
+			return
+		}
+		respondWithInternalErr(w, fmt.Sprintf("Error getting user with email: %v", err))
+		return
+	}
+
+	token, err := CreateToken(user.Name)
+	if err != nil {
+		respondWithInternalErr(w, fmt.Sprintf("Error creating JWT key: %v", err))
+		return
+	}
+	respondWithJson(w, http.StatusOK, token, "token")
 }
 
 func (s *ApiServer) handleRegister(w http.ResponseWriter, r *http.Request) {
 	createUserReq := new(models.CreateUserRequest)
 
 	if err := json.NewDecoder(r.Body).Decode(createUserReq); err != nil {
-		respondWithClientErr(w, http.StatusBadRequest, "Invalid payload")
+		respondWithClientErr(w, http.StatusBadRequest, invalidPayload)
 		return
 	}
 
@@ -113,4 +144,20 @@ func HashPassword(password string) (string, error) {
 		return "", err
 	}
 	return string(hash), nil
+}
+
+func CreateToken(userName string) (string, error) {
+	// create a new token with symmetric signing
+	key := []byte(os.Getenv("JWT_SECRET"))
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256,
+		jwt.MapClaims{
+			"sub": userName,
+			"iat": time.Now().Unix(),
+			"exp": time.Now().Add(time.Hour).Unix(),
+		})
+	s, err := token.SignedString(key)
+	if err != nil {
+		return "", err
+	}
+	return s, nil
 }
