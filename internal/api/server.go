@@ -29,9 +29,10 @@ func NewApiServer(store storage.Storage) *ApiServer {
 	s.store = store
 
 	router := http.NewServeMux()
-	router.Handle("POST /register", http.HandlerFunc(s.handleRegister))
-	router.Handle("POST /login", http.HandlerFunc(s.handleLogin))
-	router.Handle("GET /user", http.HandlerFunc(s.handleGetUser))
+
+	router.Handle("POST /register", chain(s.handleRegister, logger))
+	router.Handle("POST /login", chain(s.handleLogin, logger))
+	router.Handle("GET /user", chain(s.auth(s.handleGetUser), logger))
 
 	s.Handler = router
 	return s
@@ -116,29 +117,7 @@ func (s *ApiServer) handleLogin(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *ApiServer) handleGetUser(w http.ResponseWriter, r *http.Request) {
-	cookie, err := r.Cookie(AuthHeader)
-	if err != nil {
-		respondWithClientErr(w, http.StatusUnauthorized, err.Error())
-		return
-	}
-
-	userID, err := verifyToken(cookie.Value)
-	if err != nil {
-		respondWithClientErr(w, http.StatusUnauthorized, err.Error())
-		return
-	}
-
-	user, err := s.store.GetUserByID(userID)
-	if err != nil {
-		if err == storage.ErrUserNotFound || user == nil {
-			respondWithClientErr(w, http.StatusUnauthorized, err.Error())
-			return
-		}
-		respondWithInternalErr(w, fmt.Sprintf("Error getting user with id: %v", err))
-		return
-	}
-
+func (s *ApiServer) handleGetUser(w http.ResponseWriter, r *http.Request, user *models.User) {
 	respondWithJson(w, http.StatusOK, user, "user")
 }
 
