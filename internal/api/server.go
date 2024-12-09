@@ -32,7 +32,7 @@ func NewApiServer(store storage.Storage) *ApiServer {
 
 	router.Handle("POST /register", chain(s.handleRegister, logger))
 	router.Handle("POST /login", chain(s.handleLogin, logger))
-	router.Handle("GET /user", chain(s.auth(s.handleGetUser), logger))
+	router.Handle("GET /me", chain(s.auth(s.handleGetUser), logger))
 
 	s.Handler = router
 	return s
