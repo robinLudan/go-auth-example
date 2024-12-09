@@ -11,8 +11,8 @@ import (
 
 	"github.com/joho/godotenv"
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/robinLudan/user-auth/internal/api"
-	"github.com/robinLudan/user-auth/internal/storage"
+	"github.com/robinLudan/go-auth-example/internal/api"
+	"github.com/robinLudan/go-auth-example/internal/storage"
 )
 
 func main() {

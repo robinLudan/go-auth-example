@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/robinLudan/user-auth/internal/models"
-	"github.com/robinLudan/user-auth/internal/storage"
+	"github.com/robinLudan/go-auth-example/internal/models"
+	"github.com/robinLudan/go-auth-example/internal/storage"
 )
 
 type authHandler func(http.ResponseWriter, *http.Request, *models.User)

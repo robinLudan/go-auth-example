@@ -1,4 +1,4 @@
-module github.com/robinLudan/user-auth
+module github.com/robinLudan/go-auth-example
 
 go 1.23.3
 

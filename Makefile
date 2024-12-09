@@ -1,4 +1,4 @@
-project = user-auth
+project = go-auth-example
 
 run:
 	@go run cmd/${project}/main.go

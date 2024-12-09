@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/robinLudan/user-auth/internal/models"
-	"github.com/robinLudan/user-auth/internal/storage"
-	"github.com/robinLudan/user-auth/internal/utils"
+	"github.com/robinLudan/go-auth-example/internal/models"
+	"github.com/robinLudan/go-auth-example/internal/storage"
+	"github.com/robinLudan/go-auth-example/internal/utils"
 	"golang.org/x/crypto/bcrypt"
 )
 

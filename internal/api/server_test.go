@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/robinLudan/user-auth/internal/models"
+	"github.com/robinLudan/go-auth-example/internal/models"
 )
 
 type StubStorage struct {
