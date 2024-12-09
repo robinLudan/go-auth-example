@@ -33,6 +33,7 @@ func NewApiServer(store storage.Storage) *ApiServer {
 	router.Handle("POST /register", chain(s.handleRegister, logger))
 	router.Handle("POST /login", chain(s.handleLogin, logger))
 	router.Handle("GET /me", chain(s.auth(s.handleGetUser), logger))
+	router.Handle("GET /errors", chain(s.handleErrors, logger))
 
 	s.Handler = router
 	return s
@@ -119,6 +120,10 @@ func (s *ApiServer) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 func (s *ApiServer) handleGetUser(w http.ResponseWriter, r *http.Request, user *models.User) {
 	respondWithJson(w, http.StatusOK, user, "user")
+}
+
+func (s *ApiServer) handleErrors(w http.ResponseWriter, r *http.Request) {
+	respondWithClientErr(w, http.StatusBadRequest, "client error example")
 }
 
 func respondWithJson(w http.ResponseWriter, code int, model interface{}, key string) {
